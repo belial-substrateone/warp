@@ -18,6 +18,11 @@ path = "src/lib.rs"
 # flag overrides). Otherwise these binaries are exactly identical to our main binary.
 
 [[bin]]
+name = "anonwarp"
+path = "src/bin/anonwarp.rs"
+test = false
+
+[[bin]]
 name = "warp-oss"
 path = "src/bin/oss.rs"
 test = false

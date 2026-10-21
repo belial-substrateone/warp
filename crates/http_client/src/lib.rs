@@ -1,3 +1,4 @@
+pub mod egress;
 pub mod iap;
 
 use std::future::Future;
@@ -401,6 +402,10 @@ impl Client {
             before_response_send_fn(&request, &serialized_payload);
         }
 
+        if egress::is_blocked(request.url()) {
+            return Err(egress::blocked_error(&self.wrapped, request.url()));
+        }
+
         let _guard = prevent_sleep_reason.map(prevent_sleep::prevent_sleep);
 
         cfg_if::cfg_if! {
@@ -520,6 +525,21 @@ impl<'a> RequestBuilder<'a> {
     /// Sends the request to the endpoint, which is assumed to be a streaming server-sent-events
     /// endpoint, and returns a corresponding `EventSource`.
     pub fn eventsource(self) -> EventSourceStream {
+        if let Some(request) = self.wrapped.try_clone().and_then(|b| b.build().ok())
+            && egress::is_blocked(request.url())
+        {
+            let err = egress::blocked_error(&self.client.wrapped, request.url());
+            let blocked = futures::stream::once(future::ready(Err(
+                reqwest_eventsource::Error::Transport(err),
+            )));
+            cfg_if::cfg_if! {
+                if #[cfg(target_family = "wasm")] {
+                    return blocked.boxed_local();
+                } else {
+                    return blocked.boxed();
+                }
+            }
+        }
         cfg_if::cfg_if! {
             if #[cfg(target_family = "wasm")] {
                 let mut stream = self

@@ -17,6 +17,7 @@ pub mod team;
 pub mod tui_onboarding;
 pub mod workspace;
 
+use crate::server::stub;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
@@ -1572,51 +1573,87 @@ impl ServerApiProvider {
     }
 
     pub fn get_auth_client(&self) -> Arc<dyn AuthClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::auth::StubAuthClient);
+        }
         self.auth_client.clone()
     }
 
     pub fn get_referrals_client(&self) -> Arc<dyn ReferralsClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubReferralsClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_block_client(&self) -> Arc<dyn BlockClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubBlockClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_workspace_client(&self) -> Arc<dyn WorkspaceClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::workspace::StubWorkspaceClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_team_client(&self) -> Arc<dyn TeamClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::team::StubTeamClient);
+        }
         self.server_api.clone()
     }
     #[cfg(feature = "tui")]
     pub fn get_tui_onboarding_client(&self) -> Arc<dyn TuiOnboardingClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubTuiOnboardingClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_ai_client(&self) -> Arc<dyn AIClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::ai::StubAiClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_cloud_objects_client(&self) -> Arc<dyn ObjectClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::objects::StubObjectClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_integrations_client(&self) -> Arc<dyn integrations::IntegrationsClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubIntegrationsClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_managed_secrets_client(&self) -> Arc<AppManagedSecretsClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubManagedSecretsClient);
+        }
         self.server_api.clone()
     }
 
     #[cfg_attr(target_family = "wasm", expect(dead_code))]
     pub fn get_managed_mcp_client(&self) -> Arc<dyn ManagedMcpClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubManagedMcpClient);
+        }
         self.server_api.clone()
     }
 
     pub fn get_factory_client(&self) -> Arc<dyn FactoryClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubFactoryClient);
+        }
         self.server_api.clone()
     }
 
@@ -1628,6 +1665,9 @@ impl ServerApiProvider {
 
     #[cfg_attr(target_family = "wasm", expect(dead_code))]
     pub fn get_harness_support_client(&self) -> Arc<dyn harness_support::HarnessSupportClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubHarnessSupportClient);
+        }
         self.server_api.clone()
     }
 
@@ -1636,6 +1676,9 @@ impl ServerApiProvider {
     pub fn get_prewarmed_sandbox_client(
         &self,
     ) -> Arc<dyn prewarmed_sandbox::PrewarmedSandboxClient> {
+        if warp_core::channel::stub_server_enabled() {
+            return Arc::new(stub::misc::StubPrewarmedSandboxClient);
+        }
         self.server_api.clone()
     }
 }

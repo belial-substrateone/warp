@@ -2,6 +2,20 @@ mod config;
 mod state;
 
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static STUB_SERVER: AtomicBool = AtomicBool::new(false);
+
+/// Selects the offline server stubs (`app/src/server/stub`) in place of the real Warp server
+/// clients. Set once by the channel binary before `warp::run()`.
+pub fn set_stub_server(enabled: bool) {
+    STUB_SERVER.store(enabled, Ordering::Relaxed);
+}
+
+/// Whether the offline server stubs are in use.
+pub fn stub_server_enabled() -> bool {
+    STUB_SERVER.load(Ordering::Relaxed)
+}
 
 pub use config::*;
 pub use state::*;

@@ -13,6 +13,10 @@ default-run = "warp-tui-oss"
 # the internal `warp-channel-config` generator; `./script/run-tui` selects the
 # local bin when the generator is available.
 [[bin]]
+name = "anonwarp-tui"
+path = "src/bin/anonwarp.rs"
+
+[[bin]]
 name = "warp-tui-oss"
 path = "src/bin/oss.rs"
 

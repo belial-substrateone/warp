@@ -1,6 +1,7 @@
 pub(crate) mod convert_conversation;
 mod convert_from;
 mod convert_to;
+mod offline;
 mod r#impl;
 
 use std::collections::HashSet;

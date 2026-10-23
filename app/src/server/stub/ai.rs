@@ -88,9 +88,9 @@ impl AIClient for StubAiClient {
 
     async fn get_ai_credit_availability(&self) -> Result<AICreditAvailability, anyhow::Error> {
         stub_call!("ai.get_ai_credit_availability");
-        Ok(AICreditAvailability::unavailable(
-            AICreditDenialReason::Unknown,
-        ))
+        // Available, so the UI lets the user submit prompts; the offline agent path answers
+        // with a canned "not configured" reply (see ai/agent/api/offline.rs).
+        Ok(AICreditAvailability::available_with_source(None))
     }
 
     async fn get_chatgpt_connection(&self) -> Result<ChatGPTConnectionStatus, anyhow::Error> {

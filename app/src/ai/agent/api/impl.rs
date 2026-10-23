@@ -150,9 +150,8 @@ pub async fn generate_multi_agent_output(
     };
 
     if warp_core::channel::stub_server_enabled() {
-        let events = super::offline::placeholder_events(&request);
-        let output_stream = futures::stream::iter(events.into_iter().map(Ok))
-            .take_until(cancellation_rx);
+        let output_stream =
+            super::local_backend::local_agent_events(request).take_until(cancellation_rx);
         return Ok(Box::pin(output_stream));
     }
 

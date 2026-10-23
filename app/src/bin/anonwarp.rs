@@ -17,6 +17,8 @@ const LOCAL_WS: &str = "ws://127.0.0.1:8080/graphql/v2";
 // HTTP egress guard blocks Warp-operated hosts as a backstop.
 fn main() -> Result<()> {
     http_client::egress::set_block_warp_hosts(true);
+    // Catch-all: nothing may reach the stub server address until a local backend is wired in.
+    http_client::egress::set_blocked_authorities(&["127.0.0.1:8080"]);
     warp_core::channel::set_stub_server(true);
 
     let state = ChannelState::new(

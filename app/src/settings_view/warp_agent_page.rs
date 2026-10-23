@@ -4200,7 +4200,9 @@ impl SettingsWidget for VoiceWidget {
     }
 
     fn should_render(&self, app: &AppContext) -> bool {
-        cfg!(feature = "voice_input") && UserWorkspaces::as_ref(app).is_voice_enabled()
+        !warp_core::channel::stub_server_enabled()
+            && cfg!(feature = "voice_input")
+            && UserWorkspaces::as_ref(app).is_voice_enabled()
     }
 
     fn render(

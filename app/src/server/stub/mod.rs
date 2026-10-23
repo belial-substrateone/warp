@@ -8,6 +8,7 @@
 //! local implementations.
 
 pub mod ai;
+pub mod ai_local;
 pub mod auth;
 pub mod misc;
 pub mod objects;

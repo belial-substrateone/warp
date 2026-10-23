@@ -27,6 +27,11 @@ impl Transcriber for ServerVoiceTranscriber {
         language: Option<String>,
         team_scope: RequestTeamScope,
     ) -> Result<String, TranscribeError> {
+        if warp_core::channel::stub_server_enabled() {
+            return Err(TranscribeError::Other(anyhow::anyhow!(
+                "Voice transcription is disabled in offline (stub server) mode."
+            )));
+        }
         let request = TranscribeRequest {
             provider: Provider::Wispr,
             audio: Some(wav_base64),

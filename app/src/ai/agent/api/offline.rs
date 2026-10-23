@@ -12,6 +12,7 @@ use warp_multi_agent_api as api;
 const PLACEHOLDER_TEXT: &str = "AI is not configured in AnonWarp yet. This client is running \
 without the Warp server, so there is no model behind the agent. Terminal features work as normal.";
 
+#[allow(dead_code)]
 /// Events for a single placeholder reply to `request`.
 pub fn placeholder_events(request: &api::Request) -> Vec<api::ResponseEvent> {
     let conversation_id = request

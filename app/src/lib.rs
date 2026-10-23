@@ -1015,6 +1015,12 @@ pub type TuiMountFn = Box<dyn FnOnce(&mut warpui::AppContext)>;
 fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
     let mut timer = IntervalTimer::new();
 
+    // AnonWarp: catch-all so no websocket connects to the stub server address.
+    #[cfg(not(target_family = "wasm"))]
+    if warp_core::channel::stub_server_enabled() {
+        websocket::set_blocked_authorities(&["127.0.0.1:8080"]);
+    }
+
     // ── Early initialization (pre-AppBuilder) ──────────────────────
     // These steps run before the platform event loop is started.
     // They must not depend on AppContext.

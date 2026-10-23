@@ -10,6 +10,8 @@
 #[cfg_attr(not(target_family = "wasm"), path = "native.rs")]
 #[cfg_attr(target_family = "wasm", path = "wasm.rs")]
 mod imp;
+#[cfg(not(target_family = "wasm"))]
+pub use imp::set_blocked_authorities;
 mod sink_map_err;
 
 use anyhow::anyhow;

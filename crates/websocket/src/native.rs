@@ -24,6 +24,16 @@ pub struct WebSocket(WebSocketStream<ClientStream<TcpStream>>);
 static CLIENT_CONFIG: std::sync::LazyLock<Result<Arc<rustls::ClientConfig>, rustls::Error>> =
     std::sync::LazyLock::new(|| Ok(Arc::new(rustls::ClientConfig::with_platform_verifier()?)));
 
+/// `host:port` authorities refused by [`connect`] (AnonWarp stub-server catch-all; see
+/// `http_client::egress`).
+static BLOCKED_AUTHORITIES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+pub fn set_blocked_authorities(authorities: &[&str]) {
+    if let Ok(mut blocked) = BLOCKED_AUTHORITIES.lock() {
+        *blocked = authorities.iter().map(|a| a.to_ascii_lowercase()).collect();
+    }
+}
+
 /// Connects to a WebSocket address (optionally secured by TLS).
 ///
 /// When `HTTPS_PROXY`, `HTTP_PROXY`, or `ALL_PROXY` environment variables are set,
@@ -31,6 +41,29 @@ static CLIENT_CONFIG: std::sync::LazyLock<Result<Arc<rustls::ClientConfig>, rust
 /// The `NO_PROXY` environment variable is respected to bypass the proxy for specific hosts.
 pub async fn connect(request: impl IntoClientRequest + Unpin) -> anyhow::Result<WebSocket> {
     let request = request.into_client_request()?;
+    if let (Some(host), Some(port)) = (
+        request.uri().host(),
+        request
+            .uri()
+            .port_u16()
+            .or_else(|| match request.uri().scheme_str() {
+                Some("wss") => Some(443),
+                Some("ws") => Some(80),
+                _ => None,
+            }),
+    ) && BLOCKED_AUTHORITIES
+        .lock()
+        .is_ok_and(|blocked| blocked.contains(&format!("{}:{port}", host.to_ascii_lowercase())))
+    {
+        log::debug!(
+            "websocket egress guard: blocked connection to {}",
+            request.uri()
+        );
+        anyhow::bail!(
+            "websocket connection to {} blocked (stub server mode)",
+            request.uri()
+        );
+    }
     let tls_connector = Some(TlsConnector::from(CLIENT_CONFIG.clone()?));
 
     if let Some(proxy_info) = proxy::resolve_proxy(request.uri())? {

@@ -19,6 +19,7 @@ use warp_graphql::queries::get_conversation_usage::ConversationUsage;
 use warp_graphql::queries::get_scheduled_agent_history::ScheduledAgentHistory;
 use warp_multi_agent_api::ConversationData;
 
+use super::ai_local as local;
 use super::{StubUnsupported, stub_call, unsupported};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIAgentConversationFormat, ServerAIConversationMetadata};
@@ -28,7 +29,6 @@ use crate::ai::generate_code_review_content::api::{
 };
 use crate::ai::harness_availability::HarnessAvailability;
 use crate::ai::llms::ModelsByFeature;
-use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::ai::{AICreditAvailability, RequestUsageInfo};
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::requests::GenerateDialogueResult;
@@ -51,29 +51,57 @@ impl AIClient for StubAiClient {
 
     async fn generate_commands_from_natural_language(
         &self,
-        _prompt: String,
-        _ai_execution_context: Option<WarpAiExecutionContext>,
+        prompt: String,
+        ai_execution_context: Option<WarpAiExecutionContext>,
     ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError> {
         stub_call!("ai.generate_commands_from_natural_language");
-        Err(GenerateCommandsFromNaturalLanguageError::AiProviderError)
+        let messages = local::build_command_messages(&prompt, &ai_execution_context);
+        let text = local::complete(messages, 0.2).await.map_err(|e| {
+            log::warn!(target: "anonwarp::stub", "local LLM command generation failed: {e:#}");
+            GenerateCommandsFromNaturalLanguageError::AiProviderError
+        })?;
+        local::parse_commands(&text).ok_or_else(|| {
+            log::warn!(target: "anonwarp::stub", "unparseable command suggestions: {text}");
+            GenerateCommandsFromNaturalLanguageError::Other
+        })
     }
 
     async fn generate_dialogue_answer(
         &self,
-        _transcript: Vec<TranscriptPart>,
-        _prompt: String,
-        _ai_execution_context: Option<WarpAiExecutionContext>,
+        transcript: Vec<TranscriptPart>,
+        prompt: String,
+        ai_execution_context: Option<WarpAiExecutionContext>,
     ) -> anyhow::Result<GenerateDialogueResult> {
         stub_call!("ai.generate_dialogue_answer");
-        unsupported!("ai.generate_dialogue_answer")
+        let messages = local::build_dialogue_messages(
+            &local::transcript_pairs(&transcript),
+            &prompt,
+            &ai_execution_context,
+        );
+        let answer = local::complete(messages, 0.5).await?;
+        Ok(GenerateDialogueResult::Success {
+            answer,
+            truncated: false,
+            request_limit_info: local::unlimited_request_limit_info(),
+            transcript_summarized: false,
+        })
     }
 
     async fn generate_metadata_for_command(
         &self,
-        _command: String,
+        command: String,
     ) -> Result<GeneratedCommandMetadata, GeneratedCommandMetadataError> {
         stub_call!("ai.generate_metadata_for_command");
-        Err(GeneratedCommandMetadataError::AiProviderError)
+        let text = local::complete(local::build_metadata_messages(&command), 0.2)
+            .await
+            .map_err(|e| {
+                log::warn!(target: "anonwarp::stub", "local LLM metadata generation failed: {e:#}");
+                GeneratedCommandMetadataError::AiProviderError
+            })?;
+        local::parse_metadata(&text, &command).ok_or_else(|| {
+            log::warn!(target: "anonwarp::stub", "unparseable command metadata: {text}");
+            GeneratedCommandMetadataError::BadCommand
+        })
     }
 
     // --- Usage, credits, and account linking ---
@@ -81,7 +109,7 @@ impl AIClient for StubAiClient {
     async fn get_request_limit_info(&self) -> Result<RequestUsageInfo, anyhow::Error> {
         stub_call!("ai.get_request_limit_info");
         Ok(RequestUsageInfo {
-            request_limit_info: RequestLimitInfo::default(),
+            request_limit_info: local::unlimited_request_limit_info(),
             bonus_grants: Vec::new(),
         })
     }
@@ -122,7 +150,7 @@ impl AIClient for StubAiClient {
 
     async fn get_feature_model_choices(&self) -> Result<ModelsByFeature, anyhow::Error> {
         stub_call!("ai.get_feature_model_choices");
-        Ok(ModelsByFeature::default())
+        Ok(local::fetch_models().await)
     }
 
     async fn get_available_harnesses(&self) -> Result<Vec<HarnessAvailability>, anyhow::Error> {
@@ -145,7 +173,7 @@ impl AIClient for StubAiClient {
         _referrer: Option<String>,
     ) -> Result<ModelsByFeature, anyhow::Error> {
         stub_call!("ai.get_free_available_models");
-        Ok(ModelsByFeature::default())
+        Ok(local::fetch_models().await)
     }
 
     // --- Codebase indexing ---

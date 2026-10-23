@@ -24,6 +24,17 @@ const BLOCKED_HOST_SUFFIXES: &[&str] = &[
     "firebaseapp.com",
 ];
 
+/// `host:port` authorities (e.g. the stub server's `127.0.0.1:8080`) that are refused while
+/// the guard is on. This is the catch-all for any code path that still builds a concrete
+/// `ServerApi` request under the stub switch. Remove the entry once a local backend is wanted.
+static BLOCKED_AUTHORITIES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+pub fn set_blocked_authorities(authorities: &[&str]) {
+    if let Ok(mut blocked) = BLOCKED_AUTHORITIES.lock() {
+        *blocked = authorities.iter().map(|a| a.to_ascii_lowercase()).collect();
+    }
+}
+
 pub fn set_block_warp_hosts(block: bool) {
     BLOCK_WARP_HOSTS.store(block, Ordering::Relaxed);
 }
@@ -37,6 +48,13 @@ pub fn is_blocked(url: &reqwest::Url) -> bool {
         return false;
     };
     let host = host.trim_end_matches('.').to_ascii_lowercase();
+    if let Some(port) = url.port_or_known_default()
+        && BLOCKED_AUTHORITIES
+            .lock()
+            .is_ok_and(|blocked| blocked.contains(&format!("{host}:{port}")))
+    {
+        return true;
+    }
     BLOCKED_HOST_SUFFIXES
         .iter()
         .any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}")))
@@ -46,7 +64,7 @@ pub fn is_blocked(url: &reqwest::Url) -> bool {
 /// constructor, so this produces a builder-kind error by building a request from an
 /// invalid URL.
 pub fn blocked_error(client: &reqwest::Client, url: &reqwest::Url) -> reqwest::Error {
-    log::warn!("egress guard: blocked request to {url}");
+    log::debug!("egress guard: blocked request to {url}");
     client
         .get("http://")
         .build()

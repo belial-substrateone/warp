@@ -149,7 +149,9 @@ impl UserWorkspaces {
     /// Note that the value may be incorrect if called before the team's billing metadata has been fetched.
     /// If voice input support is not compiled into this build, always returns `false`.
     pub fn is_voice_enabled(&self) -> bool {
-        cfg!(feature = "voice_input")
+        // AnonWarp: voice transcription is disabled while the Warp server is stubbed (see TODO.md).
+        !warp_core::channel::stub_server_enabled()
+            && cfg!(feature = "voice_input")
             && self
                 .current_workspace()
                 // If the user has no team, they can toggle Voice (no restrictions).

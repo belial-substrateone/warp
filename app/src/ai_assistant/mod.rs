@@ -90,6 +90,20 @@ pub struct AIGeneratedCommandParameter {
     description: String,
 }
 
+impl AIGeneratedCommand {
+    /// Builds a command from local (non-server) generation. `parameters` are `(id, description)`.
+    pub fn new(command: String, description: String, parameters: Vec<(String, String)>) -> Self {
+        Self {
+            command,
+            description,
+            parameters: parameters
+                .into_iter()
+                .map(|(id, description)| AIGeneratedCommandParameter { id, description })
+                .collect(),
+        }
+    }
+}
+
 impl From<AIGeneratedCommand> for Workflow {
     fn from(ai_command: AIGeneratedCommand) -> Self {
         // Note that we use the AI generated description as the _title_ of the workflow.

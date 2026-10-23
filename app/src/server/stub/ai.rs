@@ -29,7 +29,7 @@ use crate::ai::generate_code_review_content::api::{
 use crate::ai::harness_availability::HarnessAvailability;
 use crate::ai::llms::ModelsByFeature;
 use crate::ai::request_usage_model::RequestLimitInfo;
-use crate::ai::{AICreditAvailability, AICreditDenialReason, RequestUsageInfo};
+use crate::ai::{AICreditAvailability, RequestUsageInfo};
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::requests::GenerateDialogueResult;
 use crate::ai_assistant::utils::TranscriptPart;

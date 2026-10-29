@@ -9,6 +9,7 @@
 //!
 //! See `REMOTE_CONTROL.md` sections 6 and 7 for the security design and the
 //! protocol specification these modules implement.
+#[cfg(not(target_family = "wasm"))]
 pub mod cert;
 pub mod clock;
 pub mod host;

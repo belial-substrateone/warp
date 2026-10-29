@@ -208,6 +208,7 @@ where
 
 /// Enumerates local interface addresses acceptable under `policy`.
 /// Enumeration failure yields an empty list (nothing is bound).
+#[cfg(not(target_family = "wasm"))]
 pub fn candidate_bind_addrs(policy: &NetPolicy) -> Vec<BoundAddr> {
     let Ok(ifaces) = if_addrs::get_if_addrs() else {
         return Vec::new();

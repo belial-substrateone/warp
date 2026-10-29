@@ -9,9 +9,13 @@
 //! See `REMOTE_CONTROL.md` at the AnonWarp repo root for the design.
 pub mod api;
 pub mod service;
+#[cfg(not(target_family = "wasm"))]
+mod service_native;
+#[cfg(not(target_family = "wasm"))]
 pub mod terminal_host;
 pub mod ui;
 
 pub use api::{ActiveSession, PairingQr, RemoteAccessEvent};
 pub use service::{HostFactory, RemoteAccessService};
+#[cfg(not(target_family = "wasm"))]
 pub use terminal_host::{AppTerminalHost, PaneBackend, PaneRuntime, PaneSource};

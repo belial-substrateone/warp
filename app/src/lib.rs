@@ -44,6 +44,7 @@ mod interval_timer;
 mod linear;
 #[cfg(feature = "local_fs")]
 mod local_control;
+pub mod remote_access;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod login_item;
 mod menu;
@@ -1551,7 +1552,19 @@ pub(crate) fn initialize_app(
     }
 
     let (auth_state, pending_api_key) = match launch_mode.auth_initialization() {
-        AuthInitialization::Persisted => (AuthState::initialize(ctx), None),
+        AuthInitialization::Persisted => {
+            let state = AuthState::initialize(ctx);
+            // AnonWarp: the offline stub server can never complete a login, so the headless TUI
+            // would sit at its login gate forever. Run it as a local, credential-less user.
+            if matches!(launch_mode, LaunchMode::Tui { .. })
+                && warp_core::channel::stub_server_enabled()
+                && !state.is_logged_in()
+            {
+                state.set_user(Some(auth::user::User::test()));
+                state.set_credentials(Some(auth::credentials::Credentials::SessionCookie));
+            }
+            (state, None)
+        }
         AuthInitialization::PendingApiKey(api_key) => (
             AuthState::initialize_for_credential_validation(ctx),
             Some(api_key),
@@ -2680,6 +2693,15 @@ pub(crate) fn initialize_app(
     {
         ctx.add_singleton_model(local_control::LocalControlBridge::new);
         ctx.add_singleton_model(local_control::LocalControlServer::new);
+    }
+
+    // Phone remote access is off until the user enables it (Settings), so the model is always
+    // registered for GUI app launches; enabling is what starts the server.
+    if matches!(
+        launch_mode,
+        LaunchMode::App { .. } | LaunchMode::Test { .. } | LaunchMode::Tui { .. }
+    ) {
+        ctx.add_singleton_model(remote_access::RemoteAccessService::new);
     }
 
     app_state

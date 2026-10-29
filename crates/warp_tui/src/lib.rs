@@ -59,6 +59,8 @@ mod resume;
 mod session_registry;
 mod skills_menu;
 mod slash_commands;
+mod remote_access_host;
+mod remote_access_view;
 mod statusline_config_view;
 pub mod tab_bar;
 mod team_menu;

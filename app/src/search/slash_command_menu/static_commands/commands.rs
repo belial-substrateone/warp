@@ -791,6 +791,16 @@ pub const REMOTE_CONTROL: StaticCommand = StaticCommand {
     argument: None,
 };
 
+pub const REMOTE_ACCESS: StaticCommand = StaticCommand {
+    name: "/remote-access",
+    description: "Pair and manage phones for remote access",
+    kind: SlashCommandKind::RemoteAccess,
+    supported_surfaces: SlashCommandSurfaces::TuiOnly,
+    availability: Availability::ALWAYS,
+    auto_enter_ai_mode: false,
+    argument: None,
+};
+
 pub const COST: StaticCommand = StaticCommand {
     name: "/cost",
     description: "Toggle credit usage details",
@@ -1021,6 +1031,10 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         && FeatureFlag::HOARemoteControl.is_enabled()
     {
         commands.push(REMOTE_CONTROL);
+    }
+
+    if FeatureFlag::RemoteAccess.is_enabled() {
+        commands.push(REMOTE_ACCESS);
     }
 
     if FeatureFlag::Changelog.is_enabled() {

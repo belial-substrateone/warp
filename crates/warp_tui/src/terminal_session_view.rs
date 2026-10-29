@@ -129,6 +129,8 @@ use crate::root_view::RootTuiView;
 use crate::session_registry::TuiSessions;
 use crate::skills_menu::{TuiSkillMenuEvent, TuiSkillMenuModel};
 use crate::slash_commands::TuiSlashCommandModel;
+use warp::remote_access::{RemoteAccessEvent, RemoteAccessService};
+use crate::remote_access_view::{TuiRemoteAccessEvent, TuiRemoteAccessView};
 use crate::statusline_config_view::{TuiStatuslineConfigEvent, TuiStatuslineConfigView};
 use crate::tab_bar::{TuiTabBarConfig, TuiTabBarEvent, TuiTabBarView};
 use crate::team_menu::{TuiTeamMenuEvent, TuiTeamMenuModel};
@@ -742,6 +744,8 @@ pub(crate) struct TuiTerminalSessionView {
     input_detection: InputDetectionState,
     completion_request: CompletionRequestState,
     terminal_model: Arc<FairMutex<TerminalModel>>,
+    /// Source of raw PTY reads for phone remote access (copies bytes only while subscribed).
+    pty_reads_rx: async_broadcast::InactiveReceiver<Arc<Vec<u8>>>,
     /// Last dimensions applied to the terminal model and PTY.
     size_info: SizeInfo,
     /// Reports the area allocated to whichever element displays PTY content
@@ -765,6 +769,8 @@ pub(crate) struct TuiTerminalSessionView {
     exit_summary: TuiExitSummaryHandle,
     handoff: Option<ViewHandle<TuiHandoffBlock>>,
     statusline_config_view: Option<ViewHandle<TuiStatuslineConfigView>>,
+    /// The `/remote-access` overlay, while open.
+    remote_access_view: Option<ViewHandle<TuiRemoteAccessView>>,
     orchestration_tab_bar: ViewHandle<TuiTabBarView>,
     orchestration_tabs_focused: bool,
     /// When set, the `exit_confirmation` window was armed to kill this child
@@ -1142,6 +1148,9 @@ impl TuiTerminalSessionView {
                 } else if let Some(statusline_config_view) = self.statusline_config_view.as_ref() {
                     self.orchestration_tabs_focused = false;
                     statusline_config_view.update(ctx, |view, ctx| view.focus(ctx));
+                } else if let Some(remote_access_view) = self.remote_access_view.as_ref() {
+                    self.orchestration_tabs_focused = false;
+                    remote_access_view.update(ctx, |view, ctx| view.focus(ctx));
                 } else if self.orchestration_tabs_focused {
                     ctx.focus_self();
                 } else {
@@ -1159,6 +1168,9 @@ impl TuiTerminalSessionView {
                 } else if let Some(statusline_config_view) = self.statusline_config_view.as_ref() {
                     self.orchestration_tabs_focused = false;
                     statusline_config_view.update(ctx, |view, ctx| view.focus(ctx));
+                } else if let Some(remote_access_view) = self.remote_access_view.as_ref() {
+                    self.orchestration_tabs_focused = false;
+                    remote_access_view.update(ctx, |view, ctx| view.focus(ctx));
                 } else if self.orchestration_tabs_focused {
                     ctx.focus_self();
                 } else {
@@ -1495,7 +1507,8 @@ impl TuiTerminalSessionView {
             model_events,
             wakeups_rx,
             size_info,
-            ..
+            inactive_pty_reads_rx,
+            colors: _,
         } = surface_init;
         let (terminal_resize_tx, terminal_resize_rx) = async_channel::unbounded();
         model
@@ -1686,6 +1699,12 @@ impl TuiTerminalSessionView {
         ctx.subscribe_to_model(&api_keys_menu, |_, _, _: &TuiApiKeysMenuEvent, ctx| {
             ctx.notify();
         });
+        if ctx.has_singleton_model::<RemoteAccessService>() {
+            let remote_access = RemoteAccessService::handle(ctx);
+            ctx.subscribe_to_model(&remote_access, |view, _, event, ctx| {
+                view.handle_remote_access_event(event, ctx);
+            });
+        }
         let conversation_menu_team_context = UserWorkspaces::team_context_resolver(ctx.handle());
         let conversation_menu = ctx.add_model(|ctx| {
             TuiConversationMenuModel::new(
@@ -2352,6 +2371,7 @@ impl TuiTerminalSessionView {
             input_detection: InputDetectionState::default(),
             completion_request: CompletionRequestState::default(),
             terminal_model: model,
+            pty_reads_rx: inactive_pty_reads_rx,
             size_info,
             terminal_resize_tx,
             transient_hint: TransientHint::default(),
@@ -2366,6 +2386,7 @@ impl TuiTerminalSessionView {
             exit_summary,
             handoff: None,
             statusline_config_view: None,
+            remote_access_view: None,
             orchestration_tab_bar,
             orchestration_tabs_focused: false,
             child_kill_armed_conversation: None,
@@ -4906,6 +4927,9 @@ impl TuiTerminalSessionView {
             SlashCommandKind::VimMode => {
                 self.toggle_vim_mode(command.name, ctx);
             }
+            SlashCommandKind::RemoteAccess => {
+                self.open_remote_access(command.name, ctx);
+            }
             SlashCommandKind::Theme => {
                 self.toggle_theme(command.name, argument.map(String::as_str), ctx);
             }
@@ -4949,6 +4973,52 @@ impl TuiTerminalSessionView {
                 );
             }
         }
+    }
+
+    /// Opens the `/remote-access` overlay (no-op if the service is not registered or the
+    /// overlay/statusline editor is already open).
+    fn open_remote_access(&mut self, command_name: &'static str, ctx: &mut ViewContext<Self>) {
+        if self.remote_access_view.is_some() || self.statusline_config_view.is_some() {
+            return;
+        }
+        if !ctx.has_singleton_model::<RemoteAccessService>() {
+            self.show_transient_hint("Remote access is unavailable in this build".to_owned(), ctx);
+            return;
+        }
+        let Ok(state) = self.session_state(ctx) else {
+            return;
+        };
+        if state.blocking_input_source().is_some() {
+            return;
+        }
+        let view = ctx.add_typed_action_tui_view(TuiRemoteAccessView::new);
+        ctx.subscribe_to_view(&view, |me, _, event, ctx| match event {
+            TuiRemoteAccessEvent::Closed => {
+                me.remote_access_view = None;
+                me.reconcile_focus(ctx);
+                ctx.notify();
+            }
+        });
+        self.remote_access_view = Some(view);
+        self.input_view.update(ctx, |input, ctx| input.clear(ctx));
+        self.orchestration_tabs_focused = false;
+        self.reconcile_focus(ctx);
+        record_static_slash_command_accepted(command_name, true, ctx);
+        ctx.notify();
+    }
+
+    /// Keeps the statusline indicator fresh and surfaces pairing approvals even when the
+    /// overlay is closed.
+    fn handle_remote_access_event(
+        &mut self,
+        event: &RemoteAccessEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if matches!(event, RemoteAccessEvent::ApprovalRequested(_)) && self.is_focused_session(ctx)
+        {
+            self.open_remote_access("/remote-access", ctx);
+        }
+        ctx.notify();
     }
 
     fn open_statusline_config(&mut self, command_name: &'static str, ctx: &mut ViewContext<Self>) {
@@ -5235,6 +5305,9 @@ impl TuiView for TuiTerminalSessionView {
         }
         if let Some(statusline_config_view) = self.statusline_config_view.as_ref() {
             view_ids.push(statusline_config_view.id());
+        }
+        if let Some(remote_access_view) = self.remote_access_view.as_ref() {
+            view_ids.push(remote_access_view.id());
         }
         view_ids
     }
@@ -5526,6 +5599,7 @@ impl TuiTerminalSessionView {
             .filter(|_| {
                 !blocker_active
                     && self.statusline_config_view.is_none()
+                    && self.remote_access_view.is_none()
                     && input_target.agent_editor_owns_input()
             });
         if let Some(conversation) = selected_conversation {
@@ -5605,7 +5679,17 @@ impl TuiTerminalSessionView {
             );
         }
         if !blocker_active
+            && let Some(remote_access_view) = self.remote_access_view.as_ref()
+        {
+            content = content.child(
+                TuiContainer::new(TuiChildView::new(remote_access_view).finish())
+                    .with_padding_top(1)
+                    .finish(),
+            );
+        }
+        if !blocker_active
             && self.statusline_config_view.is_none()
+            && self.remote_access_view.is_none()
             && (input_target.agent_editor_owns_input()
                 || matches!(input_target, TuiInputTarget::Disabled))
         {
@@ -5648,7 +5732,40 @@ impl TuiTerminalSessionView {
     }
 }
 
+/// What phone remote access shows about this session's terminal.
+pub(crate) struct RemotePaneInfo {
+    pub(crate) cols: u16,
+    pub(crate) rows: u16,
+    pub(crate) alt_screen: bool,
+    pub(crate) command_running: bool,
+    pub(crate) read_only: bool,
+    pub(crate) cwd: Option<String>,
+}
+
 impl TuiTerminalSessionView {
+    pub(crate) fn remote_pane_info(&self, ctx: &AppContext) -> RemotePaneInfo {
+        let model = self.terminal_model.lock();
+        RemotePaneInfo {
+            cols: u16::try_from(self.size_info.columns()).unwrap_or(u16::MAX),
+            rows: u16::try_from(self.size_info.rows()).unwrap_or(u16::MAX),
+            alt_screen: model.is_alt_screen_active(),
+            command_running: model.block_list().active_block().is_executing(),
+            read_only: model.is_read_only(),
+            cwd: self.active_session.as_ref(ctx).current_working_directory().cloned(),
+        }
+    }
+
+    /// Subscribes to the raw bytes read from this session's PTY.
+    pub(crate) fn subscribe_pty_reads(&self) -> async_broadcast::Receiver<Arc<Vec<u8>>> {
+        self.pty_reads_rx.activate_cloned()
+    }
+
+    /// Writes raw bytes to the PTY exactly as if the user had typed them (phone remote access).
+    /// Bytes are dropped while an agent owns the input, like keyboard input.
+    pub(crate) fn write_remote_input(&self, bytes: Vec<u8>, ctx: &mut ViewContext<Self>) {
+        self.forward_user_pty_bytes(&bytes, ctx);
+    }
+
     fn forward_user_pty_bytes(&self, bytes: &[u8], ctx: &mut ViewContext<Self>) {
         let composer_owns_input = self
             .terminal_model

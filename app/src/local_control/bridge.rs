@@ -4,6 +4,7 @@
 //! before routing each supported action to an app-side handler.
 
 use ::local_control::auth::CredentialGrant;
+use ::local_control::protocol::TargetSelector;
 use ::local_control::{
     Action, ActionKind, ControlError, ErrorCode, InstanceId, RequestEnvelope, ResponseEnvelope,
 };
@@ -190,6 +191,48 @@ impl LocalControlBridge {
         match result {
             Ok(data) => ResponseEnvelope::ok(request.request_id, data),
             Err(error) => ResponseEnvelope::error(request.request_id, error),
+        }
+    }
+}
+
+impl LocalControlBridge {
+    /// Runs one of the layout actions the remote-access host allowlists, reusing the
+    /// local-control handlers and validation but none of the local-control authority checks (the
+    /// remote server authenticates its own clients). Any other action kind is refused.
+    pub(crate) fn execute_remote_action(
+        &mut self,
+        action: Action,
+        target: TargetSelector,
+        ctx: &mut ModelContext<Self>,
+    ) -> Result<serde_json::Value, ControlError> {
+        validate_action_params(&action)?;
+        validate_action_target(action.kind, &target)?;
+        match action.kind {
+            ActionKind::TabCreate
+            | ActionKind::TabActivate
+            | ActionKind::PaneSplit
+            | ActionKind::PaneFocus
+            | ActionKind::SessionActivate => app_state::handle(
+                &self.instance_id,
+                action.kind,
+                &action.params,
+                &target,
+                ctx,
+            ),
+            ActionKind::TabClose => {
+                let mut request = RequestEnvelope::new(action);
+                request.target = target;
+                close::tab_close(&self.instance_id, &request, ctx)
+            }
+            ActionKind::PaneClose => {
+                let mut request = RequestEnvelope::new(action);
+                request.target = target;
+                close::pane_close(&self.instance_id, &request, ctx)
+            }
+            _ => Err(ControlError::new(
+                ErrorCode::NotAllowlisted,
+                format!("{} is not available to remote clients", action.kind.as_str()),
+            )),
         }
     }
 }

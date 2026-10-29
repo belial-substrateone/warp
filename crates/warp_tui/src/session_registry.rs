@@ -740,6 +740,19 @@ impl TuiSessions {
         self.focused_session_id.and_then(|id| self.session(id))
     }
 
+    /// Terminal sessions in registration order (cloud-run sessions have no PTY).
+    pub(crate) fn terminal_sessions(
+        &self,
+    ) -> Vec<(TuiSessionId, ViewHandle<TuiTerminalSessionView>)> {
+        self.sessions
+            .iter()
+            .filter_map(|session| match &session.view {
+                TuiSessionView::Terminal(view) => Some((session.id, view.clone())),
+                TuiSessionView::Cloud(_) => None,
+            })
+            .collect()
+    }
+
     /// Looks up a registered session.
     pub(crate) fn session(&self, id: TuiSessionId) -> Option<&TuiSession> {
         self.sessions.iter().find(|session| session.id == id)

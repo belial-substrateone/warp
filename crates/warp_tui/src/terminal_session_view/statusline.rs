@@ -140,6 +140,8 @@ pub(super) enum FooterSegment {
     GitHubPullRequest(Box<dyn TuiElement>),
     DateTime(Box<dyn TuiElement>),
     AgentTodoList(Box<dyn TuiElement>),
+    /// Shown while a remote-access phone is connected; independent of statusline config.
+    PhoneConnected(String),
     #[cfg(feature = "voice_input")]
     VoiceInput(Box<dyn TuiElement>),
 }
@@ -171,7 +173,8 @@ impl FooterSegment {
                 | Self::GitBranchStatus(_)
                 | Self::GitHubPullRequest(_)
                 | Self::DateTime(_)
-                | Self::AgentTodoList(_),
+                | Self::AgentTodoList(_)
+                | Self::PhoneConnected(_),
                 Self::AutoApproveIndicator(_)
                 | Self::VimIndicator(_)
                 | Self::Model(_)
@@ -184,7 +187,8 @@ impl FooterSegment {
                 | Self::GitBranchStatus(_)
                 | Self::GitHubPullRequest(_)
                 | Self::DateTime(_)
-                | Self::AgentTodoList(_),
+                | Self::AgentTodoList(_)
+                | Self::PhoneConnected(_),
             ) => " | ",
         }
     }
@@ -213,6 +217,14 @@ pub(super) fn render_status_footer_row(
                 row = row.child(
                     TuiText::new(SHELL_MODE_HINT)
                         .with_style(builder.shell_command_accent_style())
+                        .truncate()
+                        .finish(),
+                );
+            }
+            FooterSegment::PhoneConnected(label) => {
+                row = row.child(
+                    TuiText::new(label)
+                        .with_style(builder.success_glyph_style())
                         .truncate()
                         .finish(),
                 );
@@ -473,6 +485,15 @@ impl TuiTerminalSessionView {
         let mut ordered = Vec::new();
         if shell_mode {
             ordered.push(FooterSegment::ShellMode);
+        }
+        if ctx.has_singleton_model::<warp::remote_access::RemoteAccessService>()
+            && let Some(label) = crate::remote_access_view::status_indicator_text(
+                warp::remote_access::RemoteAccessService::as_ref(ctx)
+                    .active_sessions()
+                    .len(),
+            )
+        {
+            ordered.push(FooterSegment::PhoneConnected(label));
         }
         for item in config.order.iter().copied() {
             if !config.is_enabled(item) {

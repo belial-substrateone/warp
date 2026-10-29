@@ -1,0 +1,68 @@
+[package]
+name = "remote_access"
+edition = "2024"
+description = "Pure-logic building blocks for AnonWarp remote access (protocol, pairing, device tokens, QR payloads, TLS identity)"
+authors.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[features]
+# Enables `MockTerminalHost` for downstream integration tests.
+test-util = []
+# The axum/rustls server, the embedded PWA and the `remote_devhost` binary. Off by default so the
+# pure-logic crate stays free of the HTTP stack.
+server = [
+    "dep:axum",
+    "dep:hyper",
+    "dep:hyper-util",
+    "dep:log",
+    "dep:rust-embed",
+    "dep:tokio-rustls",
+    "tokio/net",
+    "tokio/time",
+    "tokio/rt",
+    "tokio/rt-multi-thread",
+    "tokio/macros",
+    "tokio/io-util",
+]
+
+[dependencies]
+async-trait.workspace = true
+base64.workspace = true
+hex.workspace = true
+if-addrs = "0.13"
+rand.workspace = true
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
+rustls = { workspace = true, features = ["ring"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha2.workspace = true
+subtle = "2.6"
+thiserror.workspace = true
+time = "0.3"
+tokio = { workspace = true, features = ["sync"] }
+zeroize = "1.8"
+axum = { workspace = true, features = ["ws"], optional = true }
+hyper = { workspace = true, features = ["server", "http1"], optional = true }
+hyper-util = { version = "0.1", features = ["tokio", "service"], optional = true }
+log = { workspace = true, optional = true }
+rust-embed = { workspace = true, optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"], optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["sync", "rt", "macros"] }
+futures-util = { workspace = true, features = ["sink", "std"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+tokio-tungstenite = { version = "0.26", default-features = false, features = ["handshake"] }
+
+[[bin]]
+name = "remote_devhost"
+path = "src/bin/remote_devhost.rs"
+required-features = ["server", "test-util"]
+
+[[test]]
+name = "e2e"
+path = "tests/e2e.rs"
+required-features = ["server", "test-util"]

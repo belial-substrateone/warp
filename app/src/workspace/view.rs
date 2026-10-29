@@ -314,6 +314,8 @@ use crate::prompt::editor_modal::{
 };
 use crate::quit_warning::UnsavedStateSummary;
 use crate::referral_theme_status::ReferralThemeEvent;
+use crate::remote_access::ui::{RemoteAccessOverlay, RemoteAccessOverlayEvent};
+use crate::remote_access::RemoteAccessService;
 use crate::remote_server::manager::RemoteServerManager;
 use crate::resource_center::{
     ResourceCenterEvent, ResourceCenterPage, ResourceCenterView, Tip, TipAction, TipsCompleted,
@@ -775,6 +777,8 @@ pub enum WorkspaceBanner {
     WaylandCrashRecovery,
     /// to display when settings.toml has errors (parse failure or invalid values)
     InvalidSettings,
+    /// to display while a paired phone is connected (remote access)
+    RemoteAccess,
 }
 
 impl WorkspaceBanner {
@@ -791,6 +795,8 @@ impl WorkspaceBanner {
             #[cfg(target_os = "linux")]
             Self::WaylandCrashRecovery => true,
             Self::InvalidSettings => true,
+            // Never dismissible: the user must always see that a phone is connected.
+            Self::RemoteAccess => false,
         }
     }
 }
@@ -1117,6 +1123,8 @@ pub struct Workspace {
     onboarding_tutorial_deferred_by_modal: Option<DeferredOnboardingTutorial>,
     new_worktree_modal: ModalViewState<Modal<NewWorktreeModal>>,
     close_session_confirmation_dialog: ViewHandle<CloseSessionConfirmationDialog>,
+    /// Phone remote access: pairing QR modal and approval prompt overlay.
+    remote_access_overlay: ViewHandle<RemoteAccessOverlay>,
     rewind_confirmation_dialog: ViewHandle<RewindConfirmationDialog>,
     delete_conversation_confirmation_dialog: ViewHandle<DeleteConversationConfirmationDialog>,
     resource_center_view: ViewHandle<ResourceCenterView>,
@@ -3102,6 +3110,7 @@ impl Workspace {
         let enable_auto_reload_modal = Self::build_enable_auto_reload_modal(ctx);
 
         let close_session_confirmation_dialog = Self::build_close_session_confirmation_dialog(ctx);
+        let remote_access_overlay = Self::build_remote_access_overlay(ctx);
         let rewind_confirmation_dialog = Self::build_rewind_confirmation_dialog(ctx);
         let delete_conversation_confirmation_dialog =
             Self::build_delete_conversation_confirmation_dialog(ctx);
@@ -3501,6 +3510,7 @@ impl Workspace {
             onboarding_tutorial_deferred_by_modal: None,
             new_worktree_modal,
             close_session_confirmation_dialog,
+            remote_access_overlay,
             rewind_confirmation_dialog,
             delete_conversation_confirmation_dialog,
             resource_center_view,
@@ -22451,7 +22461,8 @@ impl Workspace {
         // than that they continue to see any of the autoupdate or crash recovery
         // banners.
         let banner_fields = self
-            .render_reauth_banner_element()
+            .render_remote_access_banner(app)
+            .or_else(|| self.render_reauth_banner_element())
             .or_else(|| self.render_settings_error_banner(app))
             .or_else(|| self.render_autoupdate_banner_element(app));
 
@@ -22459,6 +22470,54 @@ impl Workspace {
         let banner_fields = banner_fields.or_else(|| crash_recovery::banner_metadata(app));
 
         banner_fields
+    }
+
+    /// Always-visible banner while any phone is connected over remote access, with a one-click
+    /// kill switch. Highest priority: it must never be hidden behind another banner.
+    fn render_remote_access_banner(&self, app: &AppContext) -> Option<WorkspaceBannerFields> {
+        if !app.has_singleton_model::<RemoteAccessService>() {
+            return None;
+        }
+        let service = RemoteAccessService::as_ref(app);
+        let description = crate::remote_access::ui::view_model::session_banner_text(
+            &service.active_sessions(),
+        )?;
+        Some(WorkspaceBannerFields {
+            banner_type: WorkspaceBanner::RemoteAccess,
+            severity: BannerSeverity::Warning,
+            heading: None,
+            description,
+            secondary_button: None,
+            button: Some(WorkspaceBannerButtonDetails {
+                text: "Disconnect".to_owned(),
+                action: WorkspaceAction::RemoteAccessKillAll,
+                variant: BannerButtonVariant::Outlined,
+                icon: None,
+                more_info_button_action: None,
+            }),
+        })
+    }
+
+    fn build_remote_access_overlay(ctx: &mut ViewContext<Self>) -> ViewHandle<RemoteAccessOverlay> {
+        let overlay = ctx.add_typed_action_view(RemoteAccessOverlay::new);
+        ctx.subscribe_to_view(&overlay, |me, _, event, ctx| match event {
+            RemoteAccessOverlayEvent::Opened => {
+                // Nothing is focused inside the dialog, so Enter cannot trigger a button.
+                ctx.focus(&me.remote_access_overlay);
+                ctx.notify();
+            }
+            RemoteAccessOverlayEvent::Closed => {
+                me.focus_active_tab(ctx);
+                ctx.notify();
+            }
+        });
+        // Re-render the banner when phones connect or disconnect.
+        if ctx.has_singleton_model::<RemoteAccessService>() {
+            ctx.subscribe_to_model(&RemoteAccessService::handle(ctx), |_, _, _, ctx| {
+                ctx.notify();
+            });
+        }
+        overlay
     }
 
     fn render_settings_error_banner(&self, app: &AppContext) -> Option<WorkspaceBannerFields> {
@@ -22869,6 +22928,7 @@ impl Workspace {
             WorkspaceBanner::WaylandCrashRecovery => {
                 crash_recovery::dismiss_workspace_banner(ctx);
             }
+            WorkspaceBanner::RemoteAccess => {}
             WorkspaceBanner::InvalidSettings => {
                 self.settings_error_banner_dismissed = true;
                 self.sync_settings_error_state_into_settings_pane(ctx);
@@ -24535,6 +24595,13 @@ impl TypedActionView for Workspace {
                     .is_remove_tab_config_dialog_open = true;
                 ctx.focus(&self.remove_tab_config_confirmation_dialog);
                 ctx.notify();
+            }
+            ShowRemoteAccessPairing => {
+                self.remote_access_overlay
+                    .update(ctx, |overlay, ctx| overlay.show_pairing(ctx));
+            }
+            RemoteAccessKillAll => {
+                RemoteAccessService::handle(ctx).update(ctx, |s, ctx| s.kill_all_sessions(ctx));
             }
             OpenSettingsFile => {
                 let path = crate::settings::user_preferences_toml_file_path();
@@ -27877,6 +27944,18 @@ impl View for Workspace {
 
         if let Some(create_auth_secret_modal) = &self.create_auth_secret_modal {
             stack.add_child(ChildView::new(create_auth_secret_modal).finish());
+        }
+
+        if self.remote_access_overlay.as_ref(app).is_visible() {
+            stack.add_positioned_overlay_child(
+                ChildView::new(&self.remote_access_overlay).finish(),
+                OffsetPositioning::offset_from_parent(
+                    Vector2F::zero(),
+                    ParentOffsetBounds::WindowByPosition,
+                    ParentAnchor::Center,
+                    ChildAnchor::Center,
+                ),
+            );
         }
 
         if FeatureFlag::CreatingSharedSessions.is_enabled()

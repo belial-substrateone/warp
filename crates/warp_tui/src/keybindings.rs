@@ -106,6 +106,7 @@ pub(crate) fn init(app: &mut AppContext) {
     crate::handoff::init(app);
     crate::tui_ask_question_view::init(app);
     crate::statusline_config_view::init(app);
+    crate::remote_access_view::init(app);
     crate::tui_permission_prompt::init(app);
     crate::tui_shell_command_view::init(app);
     crate::tui_file_edits_view::init(app);

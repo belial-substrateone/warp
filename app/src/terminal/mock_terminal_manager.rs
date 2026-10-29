@@ -38,7 +38,9 @@ impl MockTerminalManager {
         // Create all the necessary channels we need for communication.
         let (wakeups_tx, wakeups_rx) = async_channel::unbounded();
         let (events_tx, events_rx) = async_channel::unbounded();
-        let (pty_reads_tx, _pty_reads_rx) = async_broadcast::broadcast(1);
+        let (pty_reads_tx, pty_reads_rx) =
+            async_broadcast::broadcast(super::PTY_READS_BROADCAST_CHANNEL_SIZE);
+        let pty_reads_rx = pty_reads_rx.deactivate();
         let (executor_command_tx, _executor_command_rx) = async_channel::unbounded();
 
         let channel_event_proxy = ChannelEventListener::new(wakeups_tx, events_tx, pty_reads_tx);
@@ -79,7 +81,7 @@ impl MockTerminalManager {
                 // We use conversation restoration to load a view-only cloud conversation
                 // into the web view.
                 conversation_restoration,
-                None, // inactive_pty_reads_rx
+                Some(pty_reads_rx),
                 false,
                 ctx,
             )

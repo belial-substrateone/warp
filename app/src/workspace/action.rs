@@ -870,6 +870,10 @@ pub enum WorkspaceAction {
     },
     /// Opens the settings.toml file in a code editor pane.
     OpenSettingsFile,
+    /// Opens the phone-pairing QR modal (remote access).
+    ShowRemoteAccessPairing,
+    /// Kill switch: disconnects every phone session (remote access).
+    RemoteAccessKillAll,
     /// Opens a new agent session to fix settings.toml errors using the modify-settings skill.
     FixSettingsWithOz {
         error_description: String,
@@ -1203,6 +1207,8 @@ impl WorkspaceAction {
             | TabConfigSidecarEditConfig { .. }
             | TabConfigSidecarRemoveConfig { .. }
             | OpenSettingsFile
+            | ShowRemoteAccessPairing
+            | RemoteAccessKillAll
             | FixSettingsWithOz { .. }
             | OpenLocalToCloudHandoffPane { .. }
             | AutoHandoffActiveAgentToCloud { .. }

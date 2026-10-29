@@ -1,0 +1,79 @@
+:root {
+  --bg: #0d1117; --panel: #161b22; --panel2: #21262d; --border: #30363d;
+  --fg: #e6edf3; --muted: #8b949e; --accent: #3fb950; --warn: #d29922; --bad: #f85149; --info: #58a6ff;
+  --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px);
+  --vh: 100dvh;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overscroll-behavior: none; }
+[hidden] { display: none !important; }
+button { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0 12px; min-height: 40px; touch-action: manipulation; cursor: pointer; }
+button:active { background: var(--border); }
+button:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+button.danger { color: var(--bad); }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+
+#app { position: fixed; inset: 0; height: var(--vh); display: flex; flex-direction: column;
+  padding-left: var(--sal); padding-right: var(--sar); }
+.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#screen-message { align-items: center; justify-content: center; padding: calc(var(--sat) + 16px) 16px calc(var(--sab) + 16px); overflow: auto; }
+.card { width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.card h1 { margin: 0 0 8px; font-size: 20px; }
+.card p { margin: 8px 0; overflow-wrap: anywhere; }
+.card.bad h1 { color: var(--bad); } .card.warn h1 { color: var(--warn); } .card.ok h1 { color: var(--accent); }
+.fp { margin: 12px 0; padding: 10px; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; }
+.fp code { display: block; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; overflow-wrap: anywhere; letter-spacing: .5px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.actions button { flex: 1 1 140px; min-height: 44px; }
+.spinner { width: 28px; height: 28px; margin: 12px 0; border: 3px solid var(--border); border-top-color: var(--info);
+  border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 4s; } }
+
+#statusbar { display: flex; align-items: center; gap: 8px; padding: calc(var(--sat) + 4px) 8px 4px; background: var(--panel);
+  border-bottom: 1px solid var(--border); font-size: 14px; min-height: 40px; }
+#statusbar button { min-height: 32px; padding: 0 10px; }
+.spacer { flex: 1; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); flex: none; }
+#statusbar[data-state="ready"] .dot { background: var(--accent); }
+#statusbar[data-state="fatal"] .dot, #statusbar[data-state="stopped"] .dot { background: var(--bad); }
+#conn-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#tabbar, #panebar { display: flex; gap: 6px; overflow-x: auto; padding: 6px 8px; background: var(--bg); border-bottom: 1px solid var(--border);
+  scrollbar-width: none; flex: none; }
+#tabbar::-webkit-scrollbar, #panebar::-webkit-scrollbar { display: none; }
+#tabbar button, #panebar button { flex: none; max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 34px; }
+#tabbar button[aria-selected="true"], #panebar button[aria-selected="true"] { background: #1f6feb33; border-color: var(--info); }
+#panebar button { min-height: 30px; font-size: 13px; }
+
+#term-wrap { flex: 1; min-height: 0; overflow: auto; background: #000; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+#term { display: inline-block; min-width: 100%; padding: 2px; }
+
+#toolbar { flex: none; background: var(--panel); border-top: 1px solid var(--border); padding: 4px 4px calc(var(--sab) + 4px); }
+.tb-row { display: flex; gap: 4px; overflow-x: auto; padding: 2px 0; scrollbar-width: none; }
+.tb-row::-webkit-scrollbar { display: none; }
+.tb-row button { flex: 1 0 auto; min-width: 44px; min-height: 42px; padding: 0 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; user-select: none; -webkit-user-select: none; }
+.tb-row button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #04260f; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  #statusbar { min-height: 30px; padding-top: 2px; padding-bottom: 2px; }
+  #tabbar, #panebar { padding: 3px 8px; }
+  #tabbar button { min-height: 28px; }
+  .tb-row button { min-height: 34px; }
+  #toolbar { padding-top: 2px; }
+}
+
+#sheet-backdrop { position: fixed; inset: 0; background: #0009; z-index: 10; }
+#sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; max-height: 85%; overflow: auto; background: var(--panel);
+  border-top: 1px solid var(--border); border-radius: 16px 16px 0 0; padding: 16px 16px calc(var(--sab) + 16px); }
+.sheet-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.sheet-row span { flex: 1 1 auto; }
+.sheet-row output { min-width: 2ch; text-align: center; }
+.sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sheet-grid button { min-height: 46px; }
+#sheet .primary { width: 100%; margin-top: 12px; min-height: 46px; }
+@media (min-width: 700px) { #sheet { left: 50%; right: auto; width: 520px; transform: translateX(-50%); } }

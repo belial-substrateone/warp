@@ -41,6 +41,8 @@ fn main() -> Result<()> {
     if cfg!(debug_assertions) {
         state = state.with_additional_features(warp_core::features::DEBUG_FLAGS);
     }
+    // Phone remote access (`/remote-access`); the service itself stays off until enabled.
+    state = state.with_additional_features(&[warp_core::features::FeatureFlag::RemoteAccess]);
     ChannelState::set(state);
 
     warp_tui::run()

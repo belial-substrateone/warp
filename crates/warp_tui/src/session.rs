@@ -295,6 +295,7 @@ fn init(
             let sessions = ctx.add_singleton_model(|_| {
                 TuiSessions::new(driver, exit_summary, resume_token, default_autoexecute_mode)
             });
+            crate::remote_access_host::install(ctx);
             let sessions_for_zero_state_settings = sessions.clone();
             ctx.subscribe_to_model(
                 &TuiZeroStateSettings::handle(ctx),

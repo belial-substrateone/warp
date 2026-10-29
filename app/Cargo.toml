@@ -171,6 +171,7 @@ pprof = { workspace = true, optional = true, features = ["protobuf-codec"] }
 prost.workspace = true
 prost-types.workspace = true
 qrcode.workspace = true
+remote_access.workspace = true
 rand.workspace = true
 rangemap.workspace = true
 rayon.workspace = true
@@ -307,6 +308,7 @@ winit = { workspace = true }
 wgpu.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+remote_access = { workspace = true, features = ["server"] }
 app-installation-detection.workspace = true
 async-io.workspace = true
 axum.workspace = true

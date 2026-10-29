@@ -19,6 +19,7 @@ use nav::{SettingsNavItem, SettingsUmbrella};
 use pathfinder_geometry::vector::Vector2F;
 use privacy_page::{PrivacyPageView, PrivacyPageViewEvent};
 use referrals_page::{ReferralsPageEvent, ReferralsPageView};
+use remote_access_page::RemoteAccessPageView;
 use scripting_page::ScriptingSettingsPageView;
 use settings_file_footer::{SettingsFooterKind, SettingsFooterMouseStates, render_footer};
 use settings_page::{
@@ -111,6 +112,7 @@ mod privacy;
 mod privacy_page;
 mod referrals_page;
 mod remove_custom_endpoint_confirmation_dialog;
+mod remote_access_page;
 mod scripting_page;
 mod set_default_model_modal;
 mod settings_file_footer;
@@ -320,6 +322,7 @@ pub enum SettingsSection {
     Privacy,
     Referrals,
     Scripting,
+    RemoteAccess,
     SharedBlocks,
     Teams,
     WarpDrive,
@@ -349,6 +352,7 @@ impl Display for SettingsSection {
             SettingsSection::Keybindings => write!(f, "Keyboard shortcuts"),
             SettingsSection::SharedBlocks => write!(f, "Shared blocks"),
             SettingsSection::Scripting => write!(f, "Scripting"),
+            SettingsSection::RemoteAccess => write!(f, "Remote Access"),
             SettingsSection::WarpDrive => write!(f, "Warp Drive"),
             SettingsSection::WarpAgent => write!(f, "Warp Agent"),
             SettingsSection::AgentProfiles => write!(f, "Profiles"),
@@ -389,6 +393,7 @@ impl SettingsSection {
             Self::Privacy => "Privacy",
             Self::Referrals => "Referrals",
             Self::Scripting => "Scripting",
+            Self::RemoteAccess => "Remote Access",
             Self::SharedBlocks => "Shared blocks",
             Self::Teams => "Teams",
             Self::WarpDrive => "Warp Drive",
@@ -425,6 +430,7 @@ impl SettingsSection {
             "Privacy" => Self::Privacy,
             "Referrals" => Self::Referrals,
             "Scripting" => Self::Scripting,
+            "Remote Access" => Self::RemoteAccess,
             "Shared blocks" => Self::SharedBlocks,
             "Teams" => Self::Teams,
             "Warp Drive" | "WarpDrive" => Self::WarpDrive,
@@ -1152,6 +1158,7 @@ macro_rules! update_page {
             SettingsPageViewHandle::Privacy(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Referrals(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Scripting(handle) => $ctx.update_view(handle, $update),
+            SettingsPageViewHandle::RemoteAccess(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::WarpAgent(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::AgentProfiles(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::Knowledge(handle) => $ctx.update_view(handle, $update),
@@ -1325,6 +1332,12 @@ impl SettingsView {
             None
         };
 
+        let remote_access_page_handle = if remote_access_page::is_remote_access_available() {
+            Some(ctx.add_typed_action_view(RemoteAccessPageView::new))
+        } else {
+            None
+        };
+
         // Warp Drive page
         let warp_drive_page_handle =
             ctx.add_typed_action_view(warp_drive_page::WarpDriveSettingsPageView::new);
@@ -1394,6 +1407,9 @@ impl SettingsView {
         if let Some(scripting_page_handle) = scripting_page_handle {
             settings_pages.push(SettingsPage::new(scripting_page_handle));
         }
+        if let Some(remote_access_page_handle) = remote_access_page_handle {
+            settings_pages.push(SettingsPage::new(remote_access_page_handle));
+        }
 
         settings_pages.extend(vec![
             SettingsPage::new(mcp_servers_page_handle),
@@ -1456,7 +1472,25 @@ impl SettingsView {
             );
         }
 
+        if remote_access_page::is_remote_access_available() {
+            let shared_blocks_index = nav_items
+                .iter()
+                .position(|item| {
+                    matches!(item, SettingsNavItem::Page(SettingsSection::SharedBlocks))
+                })
+                .unwrap_or(nav_items.len());
+            nav_items.insert(
+                shared_blocks_index,
+                SettingsNavItem::Page(SettingsSection::RemoteAccess),
+            );
+        }
+
         let initial_page = match page {
+            Some(SettingsSection::RemoteAccess)
+                if !remote_access_page::is_remote_access_available() =>
+            {
+                SettingsSection::Account
+            }
             Some(SettingsSection::Scripting) if !FeatureFlag::WarpControlCli.is_enabled() => {
                 SettingsSection::Account
             }
@@ -2125,6 +2159,7 @@ impl SettingsView {
             SettingsPageViewHandle::Warpify(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Referrals(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Scripting(v) => v.as_ref(app).should_render(app),
+            SettingsPageViewHandle::RemoteAccess(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::WarpAgent(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::AgentProfiles(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::Knowledge(v) => v.as_ref(app).should_render(app),

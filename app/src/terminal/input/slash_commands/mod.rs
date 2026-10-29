@@ -1035,6 +1035,10 @@ impl Input {
             SlashCommandKind::Usage => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenBillingAndUsagePane);
             }
+            SlashCommandKind::RemoteAccess => {
+                // TUI-only command; the GUI manages remote access from Settings.
+                return false;
+            }
             SlashCommandKind::RemoteControl => {
                 if !FeatureFlag::CreatingSharedSessions.is_enabled()
                     || !FeatureFlag::HOARemoteControl.is_enabled()

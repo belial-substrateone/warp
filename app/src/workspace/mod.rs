@@ -137,6 +137,16 @@ pub fn init(app: &mut AppContext) {
         ),
     ]);
 
+    crate::remote_access::ui::init(app);
+    if warp_core::channel::stub_server_enabled() {
+        app.register_editable_bindings([EditableBinding::new(
+            "workspace:show_remote_access_pairing_qr",
+            "Remote Access: show pairing QR",
+            WorkspaceAction::ShowRemoteAccessPairing,
+        )
+        .with_context_predicate(id!("Workspace"))]);
+    }
+
     if ChannelState::enable_debug_features() {
         let crash_description = if cfg!(target_os = "macos") {
             "Crash the app (for testing sentry-cocoa)"

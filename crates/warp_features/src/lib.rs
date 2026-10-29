@@ -832,6 +832,10 @@ pub enum FeatureFlag {
     /// Gates the remote control chip and `/remote-control` slash command in the CLI agent footer.
     HOARemoteControl,
 
+    /// Gates AnonWarp phone remote access (`/remote-access` in the TUI). Unrelated to
+    /// `HOARemoteControl`.
+    RemoteAccess,
+
     /// Trims trailing blank rows from CLI agent block output so unused vertical
     /// space is not rendered while the agent is running.
     TrimTrailingBlankLines,

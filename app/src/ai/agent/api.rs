@@ -1,6 +1,8 @@
 pub(crate) mod convert_conversation;
 mod convert_from;
 mod convert_to;
+// The local LLM backend streams over SSE, whose stream type is `!Send` on wasm.
+#[cfg(not(target_family = "wasm"))]
 mod local_backend;
 mod offline;
 mod r#impl;

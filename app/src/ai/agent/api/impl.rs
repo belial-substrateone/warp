@@ -150,8 +150,13 @@ pub async fn generate_multi_agent_output(
     };
 
     if warp_core::channel::stub_server_enabled() {
-        let output_stream =
-            super::local_backend::local_agent_events(request).take_until(cancellation_rx);
+        #[cfg(not(target_family = "wasm"))]
+        let events = super::local_backend::local_agent_events(request);
+        #[cfg(target_family = "wasm")]
+        let events = futures::stream::iter(
+            super::offline::placeholder_events(&request).into_iter().map(Ok),
+        );
+        let output_stream = events.take_until(cancellation_rx);
         return Ok(Box::pin(output_stream));
     }
 

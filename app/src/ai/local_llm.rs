@@ -150,6 +150,9 @@ pub async fn chat_completion(
 }
 
 /// Streaming chat completion; yields content deltas as they arrive.
+///
+/// Native only: the SSE stream type is `!Send` on wasm.
+#[cfg(not(target_family = "wasm"))]
 pub fn chat_completion_stream(
     config: &LocalLlmConfig,
     messages: &[ChatMessage],
